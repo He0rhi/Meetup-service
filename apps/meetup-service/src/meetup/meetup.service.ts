@@ -36,4 +36,10 @@ export class MeetupService {
   async remove(id: string) {
     return this.prisma.meetup.delete({ where: { id } });
   }
+  async update(id: string, meetupData: CreateMeetupDto) {
+    return this.prisma.meetup.update({ where: { id }, data:{
+      ...meetupData,
+      date: meetupData.date ? new Date(meetupData.date).toISOString() : undefined,
+    }, });
+  }
 }

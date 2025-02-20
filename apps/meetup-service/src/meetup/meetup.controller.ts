@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, UsePipes } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, UsePipes, Patch } from '@nestjs/common';
 import { MeetupService, Meetup } from './meetup.service';
 import { CreateMeetupDto } from './dto/create-meetup.dto';
 import { CreateMeetupSchema } from './dto/create-meetup.pipe';
@@ -26,6 +26,7 @@ export class MeetupController {
     return this.meetupService.findAll();
   }
 
+
   @Get(':id')
 async findOne(@Param('id') id: string): Promise<Meetup> {
   const meetup = await this.meetupService.findOne(id);
@@ -33,6 +34,15 @@ async findOne(@Param('id') id: string): Promise<Meetup> {
     throw new NotFoundException(`Meetup with id ${id} not found`);
   }
   return meetup;
+}
+
+@Patch(":id")
+async update(@Param('id') id:string, @Body() meetupData: CreateMeetupDto): Promise<Meetup>{
+  const updatedMeetup = await this.meetupService.update(id, meetupData);
+  if(!updatedMeetup){
+    throw new NotFoundException(`Meetup with id ${id} not found`);
+  }
+  return updatedMeetup;
 }
   /*
   @Get('/search/:query')
