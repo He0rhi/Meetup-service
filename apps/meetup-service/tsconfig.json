@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "types": ["node", "eslint"],         
+    "typeRoots": ["node_modules/@types"], 
+    "strictPropertyInitialization": false,
+    "target": "ES6",
+    "module": "commonjs",                
+    "moduleResolution": "node",           
+    "esModuleInterop": true,             
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true
+  },
+  "include": [
+    "src/**/*.ts"
+  ]
+}

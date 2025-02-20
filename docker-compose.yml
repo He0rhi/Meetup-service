@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  meetup-service:
+    build:
+      context: ./apps/meetup-service
+    container_name: meetup-service
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:password@db:5432/meetup?schema=public
+    ports:
+      - "3000:3000"
+    networks:
+      - app-network
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+        sh -c "npx prisma generate &&
+        npx prisma migrate dev --name init  &&
+        npm run start:dev"
+
+
+
+  db:
+    image: postgres:13
+    container_name: meetup-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: meetup
+    ports:
+      - "5432:5432"
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      retries: 5
+
+networks:
+  app-network:
+    driver: bridge
