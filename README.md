@@ -61,4 +61,6 @@ JSON:
 -DELETE 
 http://localhost:3000/meetups/id
 
+-SWAGGER DOCUMENTATION
+http://localhost:3000/swagger/
 
