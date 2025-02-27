@@ -64,3 +64,8 @@ http://localhost:3000/meetups/id
 -SWAGGER DOCUMENTATION
 http://localhost:3000/swagger/
 
+## 🧑‍💻 Текущий стаус микросервиса митапов:
+![изображение](https://github.com/user-attachments/assets/38db4386-12ca-41e8-9dbe-4dc2e9da08f5)
+
+## 🧑‍💻 Текущий стаус микросервиса авторизации:
+![изображение](https://github.com/user-attachments/assets/e9343566-bd63-4a0d-82c7-7cd59575e5ac)
