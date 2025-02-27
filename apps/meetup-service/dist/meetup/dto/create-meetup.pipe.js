@@ -37,6 +37,7 @@ exports.CreateMeetupSchema = void 0;
 const Joi = __importStar(require("joi"));
 exports.CreateMeetupSchema = Joi.object({
     title: Joi.string().min(1).required(),
-    location: Joi.string().min(1).required(),
-    date: Joi.date().iso().required(),
+    lat: Joi.number().min(-90).max(90).required(),
+    lng: Joi.number().min(-180).max(180).required(),
+    date: Joi.string().required(),
 });

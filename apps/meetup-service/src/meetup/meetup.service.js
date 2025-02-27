@@ -8,7 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MeetupService = void 0;
 const common_1 = require("@nestjs/common");
-const crypto_1 = require("crypto"); // Генерация уникального id
+const crypto_1 = require("crypto"); 
 let MeetupService = class MeetupService {
     constructor() {
         this.meetups = [];

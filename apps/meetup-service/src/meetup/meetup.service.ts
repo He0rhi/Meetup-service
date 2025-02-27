@@ -1,45 +1,98 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { CreateMeetupDto } from './dto/create-meetup.dto';
 
-export interface Meetup {
-  id: string;
-  title: string;
-  date: string;
-  location: string;
-}
+import { CreateMeetupDto } from './dto/create-meetup.dto';
 
 @Injectable()
 export class MeetupService {
   private prisma = new PrismaClient();
 
+  // Создание митапа
   async create(meetupData: CreateMeetupDto) {
-    return this.prisma.meetup.create({
+    const { tags, ...meetupInfo } = meetupData;
+
+    const createdMeetup = await this.prisma.meetup.create({
       data: {
-        title: meetupData.title,
-        location: meetupData.location,
-        date: meetupData.date, 
+        ...meetupInfo,
+        date: new Date(meetupData.date).toISOString(),
+        tags: {
+          connectOrCreate: tags?.map(tag => ({
+            where: { name: tag },
+            create: { name: tag },
+          })) || [],
+        },
       },
+      include: { tags: true },
+    });
+
+    return createdMeetup;
+  }
+
+  // Получение всех митапов
+  async findAll() {
+    return this.prisma.meetup.findMany({
+      include: { tags: true },
     });
   }
-  
-  
 
-  async findAll() {
-    return this.prisma.meetup.findMany();
+  // Поиск по параметрам
+  async search(searchParams: { title?: string; tag?: string; lat?: number; lng?: number; radius?: number }) {
+    const { title, tag, lat, lng, radius = 100 } = searchParams;
+
+    const radiusInDegreesLat = radius / 111.32;
+    const radiusInDegreesLng = radius / (111.32 * Math.cos((lat ?? 0) * Math.PI / 180));
+
+    return this.prisma.meetup.findMany({
+      where: {
+        AND: [
+          title ? { title: { contains: title, mode: 'insensitive' } } : {},
+          tag ? { tags: { some: { name: { equals: tag, mode: 'insensitive' } } } } : {},
+          lat !== undefined && lng !== undefined
+            ? {
+                lat: { gte: lat - radiusInDegreesLat, lte: lat + radiusInDegreesLat },
+                lng: { gte: lng - radiusInDegreesLng, lte: lng + radiusInDegreesLng },
+              }
+            : {},
+        ],
+      },
+      include: { tags: true },
+    });
   }
 
+  // Получение митапа по id
   async findOne(id: string) {
-    return this.prisma.meetup.findUnique({ where: { id } });
+    return this.prisma.meetup.findUnique({
+      where: { id },
+      include: { tags: true },
+    });
   }
 
-  async remove(id: string) {
-    return this.prisma.meetup.delete({ where: { id } });
-  }
+  // Обновление митапа
   async update(id: string, meetupData: CreateMeetupDto) {
-    return this.prisma.meetup.update({ where: { id }, data:{
-      ...meetupData,
-      date: meetupData.date ? new Date(meetupData.date).toISOString() : undefined,
-    }, });
+    const { tags, ...meetupInfo } = meetupData;
+
+    return this.prisma.meetup.update({
+      where: { id },
+      data: {
+        ...meetupInfo,
+        date: meetupData.date ? new Date(meetupData.date).toISOString() : undefined,
+        tags: {
+          // Очищаем старые связи через промежуточную модель
+          set: [], // очищаем старые связи
+          connectOrCreate: tags?.map(tag => ({
+            where: { name: tag },
+            create: { name: tag },
+          })) || [],
+        },
+      },
+      include: { tags: true },
+    });
+  }
+
+  // Удаление митапа
+  async remove(id: string) {
+    return this.prisma.meetup.delete({
+      where: { id },
+    });
   }
 }
