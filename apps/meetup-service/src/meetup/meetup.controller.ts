@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Res,
   Param,
   Patch,
   Post,
@@ -12,7 +13,7 @@ import {
 import { NotFoundException } from '@nestjs/common';
 import { ApiOperation, ApiParam,ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Meetup } from '@prisma/client';
-
+import { Response } from 'express';
 import { HTTP_STATUS } from '../constants/http-status';
 import { JoiValidationPipe } from '../pipes/joi-validation.pipe';
 import { CreateMeetupDto } from './dto/create-meetup.dto';
@@ -27,8 +28,8 @@ export class MeetupController {
   @Post()
   @UsePipes(new JoiValidationPipe(CreateMeetupSchema))
   @ApiOperation({ summary: 'Create a new meetup' })
-  @ApiResponse({ status: HTTP_STATUS.OK, description: 'Meetup created successfully', type: CreateMeetupDto })
-  @ApiResponse({ status: HTTP_STATUS.NOT_FOUND, description: 'Invalid input data' })
+  @ApiResponse({ status: HTTP_STATUS.OK.code, description: HTTP_STATUS.OK.description, type: CreateMeetupDto })
+  @ApiResponse({ status: HTTP_STATUS.NOT_FOUND.code, description: HTTP_STATUS.NOT_FOUND.description })
   async create(@Body() meetupData: CreateMeetupDto): Promise<Meetup> {
     const createdMeetup = await this.meetupService.create(meetupData);
     console.log('Received data:', meetupData);
@@ -37,11 +38,11 @@ export class MeetupController {
 
   @Get()
   @ApiOperation({ summary: 'Get all meetups' })
-  @ApiResponse({ status: HTTP_STATUS.OK, description: 'List of meetups', type: [CreateMeetupDto] })
+  @ApiResponse({ status: HTTP_STATUS.OK.code, description: HTTP_STATUS.OK.description, type: [CreateMeetupDto] })
   async findAll(): Promise<Meetup[]> {
     return this.meetupService.findAll();
   }
-
+ // @Get('/search/:id')
   @Get('/search')
   @ApiOperation({ summary: 'Search meetups by parameters' })
   @ApiQuery({ name: 'title', required: false, description: 'Title of the meetup' })
@@ -80,8 +81,8 @@ export class MeetupController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a meetup by its ID' })
   @ApiParam({ name: 'id', description: 'Meetup ID', type: 'string' })
-  @ApiResponse({ status: HTTP_STATUS.OK, description: 'Meetup found', type: CreateMeetupDto })
-  @ApiResponse({ status: HTTP_STATUS.NOT_FOUND, description: 'Meetup not found' })
+  @ApiResponse({ status: HTTP_STATUS.OK.code, description: HTTP_STATUS.OK.description, type: CreateMeetupDto })
+  @ApiResponse({ status: HTTP_STATUS.NOT_FOUND.code, description:HTTP_STATUS.NOT_FOUND.description })
   async findOne(@Param('id') id: string): Promise<Meetup> {
     const meetup = await this.meetupService.findOne(id);
     if (!meetup) {
@@ -89,12 +90,11 @@ export class MeetupController {
     }
     return meetup;
   }
-
   @Patch(':id')
   @ApiOperation({ summary: 'Update a meetup' })
   @ApiParam({ name: 'id', description: 'Meetup ID', type: 'string' })
-  @ApiResponse({ status: HTTP_STATUS.OK, description: 'Meetup updated', type: CreateMeetupDto })
-  @ApiResponse({ status: HTTP_STATUS.NOT_FOUND, description: 'Meetup not found' })
+  @ApiResponse({ status: HTTP_STATUS.OK.code, description: HTTP_STATUS.OK.description, type: CreateMeetupDto })
+  @ApiResponse({ status: HTTP_STATUS.NOT_FOUND.code, description: HTTP_STATUS.NOT_FOUND.description, })
   async update(
     @Param('id') id: string,
     @Body() meetupData: CreateMeetupDto,
@@ -109,8 +109,8 @@ export class MeetupController {
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a meetup' })
   @ApiParam({ name: 'id', description: 'Meetup ID', type: 'string' })
-  @ApiResponse({ status:HTTP_STATUS.NO_CONTENT, description: 'Meetup deleted successfully' })
-  @ApiResponse({ status: HTTP_STATUS.NOT_FOUND, description: 'Meetup not found' })
+  @ApiResponse({ status:HTTP_STATUS.NO_CONTENT.code, description: HTTP_STATUS.NO_CONTENT.description })
+  @ApiResponse({ status: HTTP_STATUS.NOT_FOUND.code, description: HTTP_STATUS.NOT_FOUND.description })
   async remove(@Param('id') id: string): Promise<void> {
     const meetup = await this.meetupService.findOne(id);
     if (!meetup) {
@@ -118,4 +118,54 @@ export class MeetupController {
     }
     await this.meetupService.remove(id);
   }
+
+
+  @Get('/export/csv')
+  @ApiOperation({ summary: 'Export meetups as CSV' })
+  @ApiResponse({
+    status: HTTP_STATUS.OK.code,
+    description: 'CSV file generated and ready for download',
+  })
+  @ApiResponse({
+    status: HTTP_STATUS.NOT_FOUND.code,
+    description: HTTP_STATUS.NOT_FOUND.description,
+  })
+  @ApiResponse({
+    status: HTTP_STATUS.INTERNAL_SERVER_ERROR?.code || 500,
+    description: 'Failed to generate CSV file',
+  })
+  async exportCsv(@Res() res: Response) {
+    try {
+      const filePath = await this.meetupService.generateCsv();
+      res.download(filePath);
+    } catch (error) {
+      console.error('Error generating CSV:', error);
+      res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR?.code || 500).send('Failed to generate CSV file');
+    }
+  }
+  
+  @Get('/export/pdf')
+  @ApiOperation({ summary: 'Export meetups as PDF' })
+  @ApiResponse({
+    status: HTTP_STATUS.OK.code,
+    description: 'PDF file generated and ready for download',
+  })
+  @ApiResponse({
+    status: HTTP_STATUS.NOT_FOUND.code,
+    description: HTTP_STATUS.NOT_FOUND.description,
+  })
+  @ApiResponse({
+    status: HTTP_STATUS.INTERNAL_SERVER_ERROR?.code || 500,
+    description: 'Failed to generate PDF file',
+  })
+  async exportPdf(@Res() res: Response) {
+    try {
+      const filePath = await this.meetupService.generatePdf();
+      res.download(filePath);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR?.code || 500).send('Failed to generate PDF file');
+    }
+  }
+  
 }

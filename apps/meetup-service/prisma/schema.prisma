@@ -13,19 +13,16 @@ model Meetup {
   date     DateTime
   lat      Float    
   lng      Float    
-
-  tags     Tag[]    @relation("MeetupTags") // Связь many-to-many с Tag
-
-  // Обратная связь через MeetupTag
+  userId   String
+  tags     Tag[]    @relation("MeetupTags")
   meetupTags MeetupTag[]
 }
 
 model Tag {
   id       String   @id @default(uuid())
   name     String   @unique
-  meetups  Meetup[] @relation("MeetupTags") // Связь many-to-many с Meetup
+  meetups  Meetup[] @relation("MeetupTags") 
 
-  // Обратная связь через MeetupTag
   meetupTags MeetupTag[]
 }
 

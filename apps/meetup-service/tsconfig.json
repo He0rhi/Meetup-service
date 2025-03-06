@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "types": ["node", "eslint"],         
-    "typeRoots": ["node_modules/@types"], 
+    "typeRoots": ["node_modules/@types", "src/types"], 
     "strictPropertyInitialization": false,
     "target": "ES6",
     "module": "commonjs",                
@@ -9,11 +9,13 @@
     "esModuleInterop": true,             
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
+   
     "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true
+"rootDirs": ["./src", "../../prisma"] ,
+   "strict": true
   },
   "include": [
-    "src/**/*.ts"
+    "src/**/*.ts",
+      "../../prisma/**/*.ts"
   ]
 }
