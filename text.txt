@@ -1,0 +1,19 @@
+
+ meetup-service:
+    build:
+      context: ./apps/meetup-service
+    container_name: meetup-service
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:password@db:5432/meetup?schema=public
+    ports:
+      - "3000:3000"
+    networks:
+      - app-network
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "npx prisma generate &&
+      npx prisma migrate deploy &&
+      npm run start:dev"
