@@ -13,16 +13,15 @@ model Meetup {
   date     DateTime
   lat      Float    
   lng      Float    
-  userId   String
   tags     Tag[]    @relation("MeetupTags")
   meetupTags MeetupTag[]
+  userId   String
 }
 
 model Tag {
   id       String   @id @default(uuid())
   name     String   @unique
   meetups  Meetup[] @relation("MeetupTags") 
-
   meetupTags MeetupTag[]
 }
 

@@ -1,88 +1,70 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { CreateMeetupDto } from './dto/create-meetup.dto';
-import PDFDocument from 'pdfkit';
-import { createObjectCsvWriter } from 'csv-writer';
-import * as fs from 'fs';
-import * as path from 'path';
+import { CreateUserDto, LoginUserDto } from './dto/create-user.dto';
+import { ClientProxy, ClientProxyFactory, Transport } from '@nestjs/microservices';
+import { generateCsv, generatePdf } from './utils/reportGenerator';
+
 @Injectable()
 export class MeetupService {
-  
-  private prisma = new PrismaClient();
+  private readonly prisma = new PrismaClient(); 
 
+  private client: ClientProxy;
 
-async generateCsv(): Promise<string> {
-  const meetups = await this.findAll();
-
-  const reportsDir = path.join(__dirname, '../reports');
-  
-  if (!fs.existsSync(reportsDir)) {
-    fs.mkdirSync(reportsDir, { recursive: true });
+  constructor() {
+    this.client = ClientProxyFactory.create({
+      transport: Transport.RMQ,
+      options: {
+        urls: ['amqp://rabbitmq:5672'],
+        queue: 'auth_queue',
+        queueOptions: {
+          durable: true,
+        },
+      },
+    });
   }
 
-  const csvWriter = createObjectCsvWriter({
-    path: path.join(reportsDir, 'meetups.csv'),
-    header: [
-      { id: 'id', title: 'ID' },
-      { id: 'title', title: 'Title' },
-      { id: 'date', title: 'Date' },
-      { id: 'lat', title: 'Latitude' },
-      { id: 'lng', title: 'Longitude' },
-      { id: 'tags', title: 'Tags' },
-    ],
-  });
-
-  const records = meetups.map(meetup => ({
-    id: meetup.id,
-    title: meetup.title,
-    date: meetup.date,
-    lat: meetup.lat,
-    lng: meetup.lng,
-    tags: meetup.tags.map(tag => tag.name).join(', '),
-  }));
-
-  await csvWriter.writeRecords(records);
-
-  return path.join(reportsDir, 'meetups.csv');
-}
-
-async generatePdf(): Promise<string> {
-  const meetups = await this.findAll();
-  const reportsDir = path.join(__dirname, '../reports');
-
-  if (!fs.existsSync(reportsDir)) {
-    fs.mkdirSync(reportsDir, { recursive: true });
+   // Универсальный метод авторизации
+   private async authorizeUser(token: string) {
+    const user = await this.client.send('verify-token', token).toPromise();
+    if (!user || !user.userId) {
+      throw new Error('Invalid token');
+    }
+    return user;
   }
 
-  const filePath = path.join(reportsDir, 'meetups.pdf');
-  const doc = new PDFDocument();
 
-  doc.pipe(fs.createWriteStream(filePath));
+  async register(userData: CreateUserDto) {
+    const user = await this.client.send('register', userData).toPromise();
+    if (!user) {
+      throw new Error('Error Registration');
+    }
 
-  doc.fontSize(20).text('Available Meetups', { align: 'center' });
+    console.log("Registered user:", user);
+    return user;
+  }
 
-  meetups.forEach(meetup => {
-    doc
-      .moveDown()
-      .fontSize(14)
-      .text(`Title: ${meetup.title}`)
-      .text(`Date: ${meetup.date}`)
-      .text(`Location: ${meetup.lat}, ${meetup.lng}`)
-      .text(`Tags: ${meetup.tags.map(tag => tag.name).join(', ')}`);
-  });
+  async login(userData: LoginUserDto) {
+    const user = await this.client.send('login', userData).toPromise();
+    if (!user) {
+      throw new Error('Error Registration');
+    }
 
-  doc.end();
+    console.log("Logged in user:", user);
+    return user;
+  }
 
-  return filePath;
-}
+  async create(meetupData: CreateMeetupDto, token: string) {
+    const user = await this.authorizeUser(token);
 
-  async create(meetupData: CreateMeetupDto) {
     const { tags, ...meetupInfo } = meetupData;
+    console.log("create: meetup -", meetupData, "; userId -", user.userId);
 
     const createdMeetup = await this.prisma.meetup.create({
       data: {
         ...meetupInfo,
         date: new Date(meetupData.date).toISOString(),
+        userId: user.userId, 
         tags: {
           connectOrCreate: tags?.map(tag => ({
             where: { name: tag },
@@ -93,35 +75,39 @@ async generatePdf(): Promise<string> {
       include: { tags: true },
     });
 
+    console.log("createdMeetup:", createdMeetup);
     return createdMeetup;
   }
 
-
-  async findAll() {
+  async findAll(token: string) {
+    await this.authorizeUser(token);
     return this.prisma.meetup.findMany({
       include: { tags: true },
     });
-  }async search(searchParams: { title?: string; tag?: string; lat?: number; lng?: number; radius?: number }) {
+  }
+
+  async search(searchParams: { title?: string; tag?: string; lat?: number; lng?: number; radius?: number }, token: string) {
+    await this.authorizeUser(token);
     const { title, tag, lat, lng, radius = 100 } = searchParams;
-  
+
     if (title) {
       return this.prisma.meetup.findMany({
         where: { title: { contains: title, mode: 'insensitive' } },
         include: { tags: true },
       });
     }
-  
+
     if (tag) {
       return this.prisma.meetup.findMany({
         where: { tags: { some: { name: { equals: tag, mode: 'insensitive' } } } },
         include: { tags: true },
       });
     }
-  
-    if (lat !== undefined && lng !== undefined && radius !== undefined) {
+
+    if (lat !== undefined && lng !== undefined) {
       const radiusInDegreesLat = radius / 111.32;
       const radiusInDegreesLng = radius / (111.32 * Math.cos((lat ?? 0) * Math.PI / 180));
-  
+
       return this.prisma.meetup.findMany({
         where: {
           lat: { gte: lat - radiusInDegreesLat, lte: lat + radiusInDegreesLat },
@@ -130,19 +116,20 @@ async generatePdf(): Promise<string> {
         include: { tags: true },
       });
     }
-  
+
     return [];
   }
-  
 
-  async findOne(id: string) {
+  async findOne(id: string, token: string) {
+    await this.authorizeUser(token);
     return this.prisma.meetup.findUnique({
       where: { id },
       include: { tags: true },
     });
   }
 
-  async update(id: string, meetupData: CreateMeetupDto) {
+  async update(id: string, meetupData: CreateMeetupDto, token: string) {
+    await this.authorizeUser(token);
     const { tags, ...meetupInfo } = meetupData;
 
     return this.prisma.meetup.update({
@@ -151,7 +138,7 @@ async generatePdf(): Promise<string> {
         ...meetupInfo,
         date: meetupData.date ? new Date(meetupData.date).toISOString() : undefined,
         tags: {
-          set: [], 
+          set: [],
           connectOrCreate: tags?.map(tag => ({
             where: { name: tag },
             create: { name: tag },
@@ -162,9 +149,31 @@ async generatePdf(): Promise<string> {
     });
   }
 
-  async remove(id: string) {
+  async remove(id: string, token: string) {
+    await this.authorizeUser(token);
     return this.prisma.meetup.delete({
       where: { id },
     });
   }
+
+  async generateCsv(token: string): Promise<string> {
+    const meetups = await this.findAll(token);
+    const formattedMeetups = meetups.map(meetup => ({
+      ...meetup,
+      date: meetup.date.toISOString(), // Преобразуем дату в строку
+    }));
+  
+    return generateCsv(formattedMeetups);
+  }
+  
+  async generatePdf(token: string): Promise<string> {
+    const meetups = await this.findAll(token);
+    const formattedMeetups = meetups.map(meetup => ({
+      ...meetup,
+      date: meetup.date.toISOString(), // Преобразуем дату в строку
+    }));
+  
+    return generatePdf(formattedMeetups);
+  }
+  
 }

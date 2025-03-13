@@ -17,3 +17,32 @@
       sh -c "npx prisma generate &&
       npx prisma migrate deploy &&
       npm run start:dev"
+
+
+
+
+
+
+
+
+
+
+
+auth-service:
+    build:
+      context: ./apps/auth-service
+    container_name: auth-service
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:password@db:5432/meetup?schema=public
+    ports:
+      - "3001:3001"
+    networks:
+      - app-network
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "npx prisma generate &&
+      npx prisma migrate deploy &&
+      npm run start:dev"

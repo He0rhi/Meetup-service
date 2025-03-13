@@ -5,6 +5,7 @@ CREATE TABLE "Meetup" (
     "date" TIMESTAMP(3) NOT NULL,
     "lat" DOUBLE PRECISION NOT NULL,
     "lng" DOUBLE PRECISION NOT NULL,
+    "userId" TEXT NOT NULL,
 
     CONSTRAINT "Meetup_pkey" PRIMARY KEY ("id")
 );
