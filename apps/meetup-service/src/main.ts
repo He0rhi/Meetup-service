@@ -12,6 +12,7 @@ async function bootstrap() {
     .setTitle('Meetups API')
     .setDescription('API for managing meetups and tags')
     .setVersion('1.0')
+    .addBearerAuth()
     .addTag('meetups')
     .build();
 

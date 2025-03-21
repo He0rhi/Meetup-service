@@ -43,12 +43,13 @@ export async function generateCsv(meetups: Meetup[]): Promise<string> {
   await csvWriter.writeRecords(records);
   return path.join(reportsDir, 'meetups.csv');
 }
-
 export async function generatePdf(meetups: Meetup[]): Promise<string> {
   const filePath = path.join(reportsDir, 'meetups.pdf');
-  const doc = new PDFDocument();
+  fs.mkdirSync(reportsDir, { recursive: true });
 
-  doc.pipe(fs.createWriteStream(filePath));
+  const doc = new PDFDocument();
+  const stream = fs.createWriteStream(filePath);
+  doc.pipe(stream);
 
   doc.fontSize(20).text('Available Meetups', { align: 'center' });
 
@@ -63,5 +64,10 @@ export async function generatePdf(meetups: Meetup[]): Promise<string> {
   });
 
   doc.end();
+
+  await new Promise<void>(resolve => stream.on('finish', () => resolve()));
+  console.log('PDF saved at:', filePath);
+
   return filePath;
 }
+

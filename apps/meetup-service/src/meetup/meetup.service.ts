@@ -4,11 +4,9 @@ import { CreateMeetupDto } from './dto/create-meetup.dto';
 import { CreateUserDto, LoginUserDto } from './dto/create-user.dto';
 import { ClientProxy, ClientProxyFactory, Transport } from '@nestjs/microservices';
 import { generateCsv, generatePdf } from './utils/reportGenerator';
-
 @Injectable()
 export class MeetupService {
-  private readonly prisma = new PrismaClient(); 
-
+  private readonly prisma = new PrismaClient();
   private client: ClientProxy;
 
   constructor() {
@@ -17,78 +15,27 @@ export class MeetupService {
       options: {
         urls: ['amqp://rabbitmq:5672'],
         queue: 'auth_queue',
-        queueOptions: {
-          durable: true,
-        },
+        queueOptions: { durable: true },
       },
     });
   }
 
-   // Универсальный метод авторизации
-   private async authorizeUser(token: string) {
+
+  private async authorizeUser(token: string) {
     const user = await this.client.send('verify-token', token).toPromise();
-    if (!user || !user.userId) {
-      throw new Error('Invalid token');
-    }
+    if (!user || !user.userId) throw new Error('Invalid token');
     return user;
   }
 
-
-  async register(userData: CreateUserDto) {
-    const user = await this.client.send('register', userData).toPromise();
-    if (!user) {
-      throw new Error('Error Registration');
-    }
-
-    console.log("Registered user:", user);
-    return user;
+  private formatMeetups(meetups: any[]) {
+    return meetups.map(meetup => ({
+      ...meetup,
+      date: meetup.date.toISOString(),
+    }));
   }
 
-  async login(userData: LoginUserDto) {
-    const user = await this.client.send('login', userData).toPromise();
-    if (!user) {
-      throw new Error('Error Registration');
-    }
-
-    console.log("Logged in user:", user);
-    return user;
-  }
-
-  async create(meetupData: CreateMeetupDto, token: string) {
-    const user = await this.authorizeUser(token);
-
-    const { tags, ...meetupInfo } = meetupData;
-    console.log("create: meetup -", meetupData, "; userId -", user.userId);
-
-    const createdMeetup = await this.prisma.meetup.create({
-      data: {
-        ...meetupInfo,
-        date: new Date(meetupData.date).toISOString(),
-        userId: user.userId, 
-        tags: {
-          connectOrCreate: tags?.map(tag => ({
-            where: { name: tag },
-            create: { name: tag },
-          })) || [],
-        },
-      },
-      include: { tags: true },
-    });
-
-    console.log("createdMeetup:", createdMeetup);
-    return createdMeetup;
-  }
-
-  async findAll(token: string) {
-    await this.authorizeUser(token);
-    return this.prisma.meetup.findMany({
-      include: { tags: true },
-    });
-  }
-
-  async search(searchParams: { title?: string; tag?: string; lat?: number; lng?: number; radius?: number }, token: string) {
-    await this.authorizeUser(token);
-    const { title, tag, lat, lng, radius = 100 } = searchParams;
+  private async searchByCriteria(criteria: any) {
+    const { title, tag, lat, lng, radius = 100 } = criteria;
 
     if (title) {
       return this.prisma.meetup.findMany({
@@ -120,12 +67,56 @@ export class MeetupService {
     return [];
   }
 
-  async findOne(id: string, token: string) {
-    await this.authorizeUser(token);
-    return this.prisma.meetup.findUnique({
-      where: { id },
+  async register(userData: CreateUserDto) {
+    const user = await this.client.send('register', userData).toPromise();
+    if (!user) throw new Error('Error Registration');
+    console.log("Registered user:", user);
+    return user;
+  }
+
+  async login(userData: LoginUserDto) {
+    const user = await this.client.send('login', userData).toPromise();
+    if (!user) throw new Error('Error Login');
+    console.log("Logged in user:", user);
+    return user;
+  }
+
+  async create(meetupData: CreateMeetupDto, token: string) {
+    const user = await this.authorizeUser(token);
+    const { tags, ...meetupInfo } = meetupData;
+
+    const meetup = this.prisma.meetup.create({
+      data: {
+        ...meetupInfo,
+        date: new Date(meetupData.date),
+        userId: user.userId,
+        tags: {
+          connectOrCreate: tags?.map(tag => ({
+            where: { name: tag },
+            create: { name: tag },
+          })) || [],
+        },
+      },
       include: { tags: true },
     });
+   
+    return meetup;
+  }
+
+  async findAll(token: string) {
+    await this.authorizeUser(token);
+    return this.prisma.meetup.findMany({ include: { tags: true } });
+  }
+
+  async search(criteria: any, token: string) {
+    await this.authorizeUser(token);
+    
+    return this.searchByCriteria(criteria);
+  }
+
+  async findOne(id: string, token: string) {
+    await this.authorizeUser(token);
+    return this.prisma.meetup.findUnique({ where: { id }, include: { tags: true } });
   }
 
   async update(id: string, meetupData: CreateMeetupDto, token: string) {
@@ -151,29 +142,18 @@ export class MeetupService {
 
   async remove(id: string, token: string) {
     await this.authorizeUser(token);
-    return this.prisma.meetup.delete({
-      where: { id },
-    });
+    return this.prisma.meetup.delete({ where: { id } });
   }
 
   async generateCsv(token: string): Promise<string> {
+    await this.authorizeUser(token);
     const meetups = await this.findAll(token);
-    const formattedMeetups = meetups.map(meetup => ({
-      ...meetup,
-      date: meetup.date.toISOString(), // Преобразуем дату в строку
-    }));
-  
-    return generateCsv(formattedMeetups);
+    return generateCsv(this.formatMeetups(meetups));
   }
-  
+
   async generatePdf(token: string): Promise<string> {
+    await this.authorizeUser(token);
     const meetups = await this.findAll(token);
-    const formattedMeetups = meetups.map(meetup => ({
-      ...meetup,
-      date: meetup.date.toISOString(), // Преобразуем дату в строку
-    }));
-  
-    return generatePdf(formattedMeetups);
+    return generatePdf(this.formatMeetups(meetups));
   }
-  
 }
